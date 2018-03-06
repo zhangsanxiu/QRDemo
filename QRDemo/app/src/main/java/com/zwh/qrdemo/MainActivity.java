@@ -1,6 +1,8 @@
 package com.zwh.qrdemo;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -11,6 +13,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Message;
 import android.provider.MediaStore;
+import android.support.annotation.NonNull;
+import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -51,11 +55,47 @@ public class MainActivity extends AppCompatActivity {
     private static final String defaultString = "青山横北郭，白水绕东城。\n此地一为别，孤蓬万里征。\n浮云游子意，落日故人情。\n挥手自兹去，萧萧班马鸣。";
     private String picPath;
     private Bitmap demoBitmap;
+    private Uri user_selected_uri;
+
+    private String[] PERMISSION_REQUIRED = {Manifest.permission.READ_EXTERNAL_STORAGE, Manifest.permission.WRITE_EXTERNAL_STORAGE,
+            Manifest.permission.CAMERA};
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initComponents();
+        verifyStoragePermissions();
+    }
+    public boolean verifyStoragePermissions() {
+        int permission_result = 0;
+        for (String permission:PERMISSION_REQUIRED) {
+            permission_result +=  ActivityCompat.checkSelfPermission(getApplicationContext(), permission);
+        }
+        if (permission_result != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, PERMISSION_REQUIRED, 100);
+
+        }
+        return permission_result == 0 ? true:false;
+    }
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+        int result = 0;
+        String perssionNotice = "";
+        int i = 0;
+        for(int grantResult : grantResults){
+            result +=  grantResult;
+            if (grantResult == -1){
+                perssionNotice += permissions[i] + "  ";
+            }
+            i++;
+        }
+        if (result != 0){
+            Toast.makeText(this,"Required perssions:\n " + perssionNotice,Toast.LENGTH_SHORT).show();
+            finish();
+        }
+
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
     }
     private void initComponents(){
         resultView = (ImageView) findViewById(R.id.resultView);
@@ -139,9 +179,10 @@ public class MainActivity extends AppCompatActivity {
                 demoBitmap = null;
                 return;
             }
-            Uri uri = data.getData();
-            picPath = getPath(uri); // should the path be here in this string
-            //rawText.setText(picPath);
+            user_selected_uri = data.getData();
+            Log.e("zhangwenhao","selected file uri: " + user_selected_uri);
+            picPath = getPath(user_selected_uri); // should the path be here in this string
+            Log.e("zhangwenhao","selected file path: " + picPath);
             Message message = new Message();
             message.what = 10;
             handler.sendMessage(message);
@@ -231,6 +272,7 @@ public class MainActivity extends AppCompatActivity {
                 return null;
             }
         }
+        Log.e("zhangwenhao","store picture to phone");
         // Create a media file name
         String timeStamp = new SimpleDateFormat("ddMMyyyy_HHmm").format(new Date());
         File mediaFile;
@@ -243,12 +285,18 @@ public class MainActivity extends AppCompatActivity {
         public boolean handleMessage(Message msg) {
             switch (msg.what){
                 case 10:
-                    Bitmap bitmap = getBitmapFromPath(picPath);
+                    //Bitmap bitmap = getBitmapFromPath(picPath);
+                    try{
+                    Bitmap bitmap = BitmapFactory.decodeStream(getContentResolver().openInputStream(user_selected_uri));
                     if (bitmap != null){
                         demoBitmap = bitmap;
                         resultView.setWillNotDraw(false);
                         resultView.setImageBitmap(demoBitmap);
                     }
+                    }catch (Exception e){
+
+                    }
+
                     break;
             }
             return false;
